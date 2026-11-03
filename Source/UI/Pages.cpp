@@ -133,7 +133,7 @@ void FilterPanel::paint (Graphics& g)
 {
     Panel::paint (g);
     auto r = graphArea.toFloat();
-    g.setColour (Colour (0xff0a0d12));
+    g.setColour (colours::display);
     g.fillRoundedRectangle (r, 4.0f);
 
     auto* cut = ctx.proc.apvts.getParameter ("flt_cutoff");

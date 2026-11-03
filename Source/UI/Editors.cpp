@@ -23,7 +23,7 @@ float WavetableDisplay::currentPos() const
 void WavetableDisplay::paint (Graphics& g)
 {
     auto r = getLocalBounds().toFloat();
-    g.setColour (Colour (0xff0a0d12));
+    g.setColour (colours::display);
     g.fillRoundedRectangle (r, 5.0f);
     g.setColour (fileOver ? colours::mod : colours::outline);
     g.drawRoundedRectangle (r.reduced (0.5f), 5.0f, fileOver ? 2.0f : 1.0f);
@@ -184,7 +184,7 @@ int EnvelopeEditor::handleAt (Point<float> p) const
 void EnvelopeEditor::paint (Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    g.setColour (Colour (0xff0a0d12));
+    g.setColour (colours::display);
     g.fillRoundedRectangle (b, 5.0f);
     g.setColour (colours::outline);
     g.drawRoundedRectangle (b.reduced (0.5f), 5.0f, 1.0f);
@@ -211,9 +211,9 @@ void EnvelopeEditor::paint (Graphics& g)
     for (int i = 0; i < 3; ++i)
     {
         const bool hot = hover == i || dragging == i;
-        g.setColour (hot ? Colours::white : colours::envColour);
+        g.setColour (hot ? colours::text : colours::envColour);
         g.fillEllipse (Rectangle<float> (hot ? 10.0f : 8.0f, hot ? 10.0f : 8.0f).withCentre (hs[i]));
-        g.setColour (Colour (0xff0a0d12));
+        g.setColour (colours::display);
         g.drawEllipse (Rectangle<float> (hot ? 10.0f : 8.0f, hot ? 10.0f : 8.0f).withCentre (hs[i]), 1.5f);
     }
 
@@ -353,7 +353,7 @@ float LfoEditor::shapeValue (int shape, float x) const
 void LfoEditor::paint (Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    g.setColour (Colour (0xff0a0d12));
+    g.setColour (colours::display);
     g.fillRoundedRectangle (b, 5.0f);
     g.setColour (colours::outline);
     g.drawRoundedRectangle (b.reduced (0.5f), 5.0f, 1.0f);
@@ -401,13 +401,13 @@ void LfoEditor::paint (Graphics& g)
         {
             const bool hot = hover == i || dragging == i;
             const auto s = toScreen (points[(size_t) i]);
-            g.setColour (hot ? Colours::white : accent);
+            g.setColour (hot ? colours::text : accent);
             g.fillEllipse (Rectangle<float> (hot ? 10.0f : 7.0f, hot ? 10.0f : 7.0f).withCentre (s));
         }
 
     // playhead
     const float ph = ctx.proc.engine.displayLfoPhase[(size_t) lfo].load();
-    g.setColour (Colours::white.withAlpha (0.5f));
+    g.setColour (colours::text.withAlpha (0.5f));
     g.drawVerticalLine (roundToInt (r.getX() + ph * r.getWidth()), r.getY(), r.getBottom());
 
     g.setColour (colours::textDim);

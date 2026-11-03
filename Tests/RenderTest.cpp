@@ -138,6 +138,35 @@ int main (int argc, char** argv)
             fos.setPosition (0); fos.truncate();
             PNGImageFormat().writeImageToStream (img, fos);
         }
+        // theme gallery
+        {
+            const auto names = StrataLook::themeNames();
+            const int cols = 3, tw = 550, th = 356;
+            const int rows = (names.size() + cols - 1) / cols;
+            Image gallery (Image::RGB, cols * tw, rows * (th + 26), true);
+            Graphics gg (gallery);
+            gg.fillAll (Colour (0xff202020));
+            content->setTab (0);
+            for (int t = 0; t < names.size(); ++t)
+            {
+                content->setTheme (t);
+                content->tick();
+                auto shot = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
+                FileOutputStream f (outDir.getChildFile ("theme" + String (t) + ".png"));
+                f.setPosition (0); f.truncate();
+                PNGImageFormat().writeImageToStream (shot, f);
+                const int x = (t % cols) * tw, y = (t / cols) * (th + 26);
+                gg.drawImage (shot, x, y + 26, tw, th, 0, 0, shot.getWidth(), shot.getHeight());
+                gg.setColour (Colours::white);
+                gg.setFont (16.0f);
+                gg.drawText (String (t + 1) + ". " + names[t], x + 8, y, tw - 16, 26, Justification::centredLeft);
+            }
+            FileOutputStream f (outDir.getChildFile ("themes.png"));
+            f.setPosition (0); f.truncate();
+            PNGImageFormat().writeImageToStream (gallery, f);
+            content->setTheme (0);
+        }
+
         // knob styles sheet
         {
             StrataLook look;

@@ -29,7 +29,9 @@ A JUCE 8 / C++20 wavetable synth with drag-and-drop modulation, seven knob shape
 - Alt-drag a knob to change modulation depth. Right-click a knob for depth presets, invert, remove,
   "add modulation from", reset, or a per-knob shape.
 - 7 knob shapes (Arc, Vintage, Hex, Chicken Head, Minimal, Neon, Square), set globally from the top bar or
-  per knob; 5 accent colours. These are saved as preferences, not in presets.
+  per knob. 11 colour themes (Classic plus Synthwave, Toxic, Ocean Deep, Lava, Candy Pop, Forest Gold, Aurora,
+  Cyber Yellow, Royal Velvet, Retro Cream) from the menu next to the knob shape. These are saved as
+  preferences, not in presets.
 - Movable editors: drag the wavetable display to morph, drag envelope handles, draw LFO points
   (double-click to add or remove, Shift to snap)
 - Preset browser with categories, search and click-to-audition; save your own presets
@@ -75,7 +77,7 @@ On the reference machine all 127 presets pass and the engine renders at roughly 
 
 ## Where things are saved
 - User presets: `Documents\Strata\User Presets\*.strata` (XML). Share them by copying the files.
-- UI preferences (knob shape, accent, tour seen): `%APPDATA%\Strata\Strata.settings`
+- UI preferences (knob shape, theme, tour seen): `%APPDATA%\Strata\Strata.settings`
 
 ## Project layout
 
@@ -87,7 +89,7 @@ On the reference machine all 127 presets pass and the engine renders at roughly 
 | `Source/Effects.*` | Reorderable FX chain |
 | `Source/PluginProcessor.*` | Processor, state (mods, LFO curves, FX order, user tables), UI settings |
 | `Source/Presets.*`, `FactoryPresets.cpp` | Preset manager and the 127 factory presets |
-| `Source/UI/LookAndFeel.*` | Colours and the 7 knob shapes |
+| `Source/UI/LookAndFeel.*` | The 11 colour themes and the 7 knob shapes |
 | `Source/UI/Controls.*` | Mod-aware knob, source chips, panels |
 | `Source/UI/Editors.*` | Wavetable display, envelope and LFO editors |
 | `Source/UI/Pages.*` | Synth, Matrix and FX pages |
@@ -99,6 +101,7 @@ On the reference machine all 127 presets pass and the engine renders at roughly 
   flavour), or write a new category recipe. Presets are built from code, so they never go missing.
 - **Add a wavetable bank:** add its name to `bankChoices()` in `Parameters.cpp` (before `"User"`) and a
   `case` in `buildBank()` in `Wavetable.cpp`.
+- **Add a colour theme:** add a row to `StrataLook::themes()` in `LookAndFeel.cpp`.
 - **Add a knob shape:** add a name to `knobStyleNames()`, an enum value, and a `case` in
   `StrataLook::drawKnob()`.
 - **Add a modulation destination:** add the parameter ID to `mod::destIDs()` and its name to `destName()`,
@@ -121,4 +124,5 @@ On the reference machine all 127 presets pass and the engine renders at roughly 
 ![Synth page](docs/synth-page.png)
 ![FX page](docs/fx-page.png)
 ![Interactive tour](docs/tour.png)
+![Colour themes](docs/themes.png)
 ![Knob shapes](docs/knob-shapes.png)

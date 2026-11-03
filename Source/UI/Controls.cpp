@@ -149,7 +149,7 @@ void ModKnob::paintOverChildren (Graphics& g)
         const float v = ctx.proc.engine.displayValue[(size_t) dest].load();
         const float a = a0 + jlimit (0.0f, 1.0f, v) * (a1 - a0);
         const Point<float> pt (c.x + (R + 3.0f) * std::sin (a), c.y - (R + 3.0f) * std::cos (a));
-        g.setColour (Colours::white);
+        g.setColour (colours::text);
         g.fillEllipse (Rectangle<float> (5.0f, 5.0f).withCentre (pt));
     }
 }

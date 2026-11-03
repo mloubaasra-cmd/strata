@@ -5,16 +5,24 @@ namespace strata
 {
 namespace colours
 {
-    inline const juce::Colour bg          { 0xff0d1016 };
-    inline const juce::Colour panel       { 0xff161b24 };
-    inline const juce::Colour panelLight  { 0xff222935 };
-    inline const juce::Colour outline     { 0xff2c3443 };
-    inline const juce::Colour text        { 0xffd5dce8 };
-    inline const juce::Colour textDim     { 0xff7c879b };
-    inline const juce::Colour mod         { 0xffff9b42 };
-    inline const juce::Colour envColour   { 0xff6fe3a1 };
-    inline const juce::Colour macroColour { 0xffe57cff };
+    // Current theme. Set by StrataLook::setTheme(); read everywhere in the UI.
+    inline juce::Colour bg          { 0xff0d1016 };
+    inline juce::Colour panel       { 0xff161b24 };
+    inline juce::Colour panelLight  { 0xff222935 };
+    inline juce::Colour outline     { 0xff2c3443 };
+    inline juce::Colour text        { 0xffd5dce8 };
+    inline juce::Colour textDim     { 0xff7c879b };
+    inline juce::Colour display     { 0xff0a0d12 };
+    inline juce::Colour mod         { 0xffff9b42 };
+    inline juce::Colour envColour   { 0xff6fe3a1 };
+    inline juce::Colour macroColour { 0xffe57cff };
 }
+
+struct Theme
+{
+    const char* name;
+    juce::uint32 bg, panel, panelLight, outline, text, textDim, display, accent, mod, env, macro;
+};
 
 class StrataLook : public juce::LookAndFeel_V4
 {
@@ -22,12 +30,13 @@ public:
     enum KnobStyle { styleArc, styleVintage, styleHex, styleChicken, styleMinimal, styleNeon, styleSquare, kNumKnobStyles };
 
     static juce::StringArray knobStyleNames();
-    static juce::StringArray accentNames();
-    static juce::Colour accentColour (int index);
+    static const std::vector<Theme>& themes();
+    static juce::StringArray themeNames();
 
     StrataLook();
 
-    void setAccent (int index);
+    void setTheme (int index);
+    int getTheme() const { return themeIndex; }
     juce::Colour getAccent() const { return accent; }
     int globalKnobStyle = styleArc;
 
@@ -51,5 +60,6 @@ public:
 
 private:
     juce::Colour accent;
+    int themeIndex = 0;
 };
 }

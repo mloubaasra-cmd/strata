@@ -33,8 +33,8 @@ UISettings::UISettings()
 
 int UISettings::getKnobStyle()             { return props->getIntValue ("knobStyle", 0); }
 void UISettings::setKnobStyle (int s)      { props->setValue ("knobStyle", s); props->saveIfNeeded(); }
-int UISettings::getAccent()                { return props->getIntValue ("accent", 0); }
-void UISettings::setAccent (int a)         { props->setValue ("accent", a); props->saveIfNeeded(); }
+int UISettings::getAccent()                { return props->getIntValue ("theme", 0); }
+void UISettings::setAccent (int a)         { props->setValue ("theme", a); props->saveIfNeeded(); }
 bool UISettings::tutorialSeen()            { return props->getBoolValue ("tutorialSeen", false); }
 void UISettings::setTutorialSeen (bool b)  { props->setValue ("tutorialSeen", b); props->saveIfNeeded(); }
 

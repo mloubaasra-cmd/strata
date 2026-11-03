@@ -171,7 +171,7 @@ void PresetBrowser::PresetModel::paintListBoxItem (int row, Graphics& g, int w, 
     }
     else if (row % 2 == 1)
     {
-        g.setColour (Colours::white.withAlpha (0.02f));
+        g.setColour (colours::text.withAlpha (0.03f));
         g.fillRect (0, 0, w, h);
     }
     g.setColour (selected ? colours::text : colours::text.withAlpha (0.85f));

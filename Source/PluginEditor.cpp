@@ -13,7 +13,7 @@ MainContent::MainContent (StrataProcessor& p, StrataLook& look)
       browser (ctx), tutorial (ctx)
 {
     look.globalKnobStyle = jlimit (0, StrataLook::kNumKnobStyles - 1, p.uiSettings.getKnobStyle());
-    look.setAccent (p.uiSettings.getAccent());
+    look.setTheme (p.uiSettings.getAccent());
     setLookAndFeel (&look);
 
     for (auto* t : { &synthTab, &matrixTab, &fxTab })
@@ -38,18 +38,12 @@ MainContent::MainContent (StrataProcessor& p, StrataLook& look)
         knobStylesChanged();
     };
 
-    const auto accents = StrataLook::accentNames();
-    for (int i = 0; i < accents.size(); ++i)
-        accentBox.addItem (accents[i], i + 1);
-    accentBox.setSelectedId (ctx.proc.uiSettings.getAccent() + 1, dontSendNotification);
-    accentBox.setTooltip ("Accent colour");
-    accentBox.onChange = [this]
-    {
-        ctx.look.setAccent (accentBox.getSelectedId() - 1);
-        ctx.proc.uiSettings.setAccent (accentBox.getSelectedId() - 1);
-        sendLookAndFeelChange();
-        repaint();
-    };
+    const auto themeNames = StrataLook::themeNames();
+    for (int i = 0; i < themeNames.size(); ++i)
+        accentBox.addItem (themeNames[i], i + 1);
+    accentBox.setSelectedId (look.getTheme() + 1, dontSendNotification);
+    accentBox.setTooltip ("Colour theme");
+    accentBox.onChange = [this] { setTheme (accentBox.getSelectedId() - 1); };
 
     tourButton.setTooltip ("Interactive tour of the synth");
     tourButton.onClick = [this] { startTutorial(); };
@@ -107,8 +101,8 @@ void MainContent::resized()
     matrixTab.setBounds (250, 12, 74, 28);
     fxTab.setBounds (328, 12, 60, 28);
     presetBar.setBounds (402, 12, 400, 28);
-    knobStyleBox.setBounds (814, 12, 140, 28);
-    accentBox.setBounds (960, 12, 76, 28);
+    knobStyleBox.setBounds (812, 12, 122, 28);
+    accentBox.setBounds (940, 12, 96, 28);
     tourButton.setBounds (1042, 12, 50, 28);
 
     const Rectangle<int> page (0, 52, kWidth, 578);
@@ -130,6 +124,16 @@ void MainContent::setTab (int tab)
     matrixTab.setToggleState (tab == 1, dontSendNotification);
     fxTab.setToggleState (tab == 2, dontSendNotification);
     if (tab == 1) matrix.refresh();
+}
+
+void MainContent::setTheme (int index)
+{
+    ctx.look.setTheme (index);
+    ctx.proc.uiSettings.setAccent (ctx.look.getTheme());
+    accentBox.setSelectedId (ctx.look.getTheme() + 1, dontSendNotification);
+    if (auto* top = getTopLevelComponent()) { top->sendLookAndFeelChange(); top->repaint(); }
+    sendLookAndFeelChange();
+    repaint();
 }
 
 void MainContent::knobStylesChanged()
@@ -256,9 +260,9 @@ void MainContent::buildTutorial()
 
     s.push_back ({ "Knob shapes",
                    "Pick the knob style you like for the whole synth: arc, vintage, hex, chicken head, minimal, neon or square. "
-                   "Right-click any knob to give just that one its own shape.",
+                   "Right-click any knob to give just that one its own shape. The menu next to it switches between 11 colour themes.",
                    "choose another knob shape",
-                   [this] { return std::vector<Component*> { &knobStyleBox }; },
+                   [this] { return std::vector<Component*> { &knobStyleBox, &accentBox }; },
                    [startValue, &proc] { *startValue = (float) proc.uiSettings.getKnobStyle(); },
                    [startValue, &proc] { return (float) proc.uiSettings.getKnobStyle() != *startValue; } });
 
@@ -328,7 +332,7 @@ StrataEditor::StrataEditor (StrataProcessor& p)
     : AudioProcessorEditor (p), proc (p), content (p, look)
 {
     look.globalKnobStyle = jlimit (0, StrataLook::kNumKnobStyles - 1, p.uiSettings.getKnobStyle());
-    look.setAccent (p.uiSettings.getAccent());
+    look.setTheme (p.uiSettings.getAccent());
     setLookAndFeel (&look);
     addAndMakeVisible (content);
 

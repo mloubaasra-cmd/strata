@@ -26,15 +26,31 @@ StringArray StrataLook::knobStyleNames()
     return { "Arc", "Vintage", "Hex", "Chicken Head", "Minimal", "Neon", "Square" };
 }
 
-StringArray StrataLook::accentNames()
+const std::vector<Theme>& StrataLook::themes()
 {
-    return { "Cyan", "Amber", "Lime", "Magenta", "Violet" };
+    //                       bg          panel       panelLight  outline     text        textDim     display     accent      mod         env         macro
+    static const std::vector<Theme> t
+    {
+        { "Classic",       0xff0d1016, 0xff161b24, 0xff222935, 0xff2c3443, 0xffd5dce8, 0xff7c879b, 0xff0a0d12, 0xff3fd8f2, 0xffff9b42, 0xff6fe3a1, 0xffe57cff },
+        { "Synthwave",     0xff150b22, 0xff21123a, 0xff2e1b4d, 0xff45296b, 0xfff3e6ff, 0xffa48cc4, 0xff0e0618, 0xffff4fa3, 0xffffa24a, 0xff4fe0ff, 0xffffe35a },
+        { "Toxic",         0xff0a0f08, 0xff121a0f, 0xff1c2817, 0xff2b3d22, 0xffe4f5da, 0xff83a374, 0xff060a05, 0xffa6ff3c, 0xffff5ad1, 0xff3cf0ff, 0xffffd23c },
+        { "Ocean Deep",    0xff061219, 0xff0b1e2b, 0xff12303f, 0xff1c4256, 0xffd8f1f7, 0xff6f9fb2, 0xff030c12, 0xff2fe6c8, 0xffff7a59, 0xff8fd3ff, 0xffc29bff },
+        { "Lava",          0xff150806, 0xff23100c, 0xff331812, 0xff4b241a, 0xfffbe5dc, 0xffb08576, 0xff0d0403, 0xffff5a1f, 0xffffd23f, 0xff59e0c5, 0xffff6fa8 },
+        { "Candy Pop",     0xfff4eefb, 0xffffffff, 0xffece3f7, 0xffd4c6e8, 0xff2a2140, 0xff7d7096, 0xfffaf7ff, 0xffff4f9a, 0xffff9f1c, 0xff16b3a4, 0xff8e5cff },
+        { "Forest Gold",   0xff0c1310, 0xff15201a, 0xff1f2e25, 0xff2e4234, 0xffe9f0e3, 0xff8ea392, 0xff07100b, 0xffe8b43a, 0xffff6b5a, 0xff7be08a, 0xff6ec9ff },
+        { "Aurora",        0xff0a0f1f, 0xff121a31, 0xff1b2645, 0xff2a395f, 0xffe3ecff, 0xff8093bd, 0xff060a17, 0xff7cf5c0, 0xffff7ad9, 0xff6fb7ff, 0xffd9f56b },
+        { "Cyber Yellow",  0xff101010, 0xff1a1a1a, 0xff262626, 0xff383838, 0xfff2f2f2, 0xff8c8c8c, 0xff080808, 0xfffff03a, 0xffff3d6e, 0xff3dd6ff, 0xffb26bff },
+        { "Royal Velvet",  0xff120a1d, 0xff1d1130, 0xff2a1946, 0xff3c2661, 0xfff1e8ff, 0xff9d8abf, 0xff0b0514, 0xffb07cff, 0xffffc14d, 0xff4df0c8, 0xffff5c8a },
+        { "Retro Cream",   0xffece2cf, 0xfffaf3e6, 0xffefe2cb, 0xffd3bf9c, 0xff3a2c1c, 0xff8a765c, 0xfffdf8ef, 0xffe0582b, 0xff2b8fb3, 0xff4f9a32, 0xffb04f9c },
+    };
+    return t;
 }
 
-Colour StrataLook::accentColour (int i)
+StringArray StrataLook::themeNames()
 {
-    static const Colour c[] = { Colour (0xff3fd8f2), Colour (0xffffb340), Colour (0xff9be35a), Colour (0xffff5fa8), Colour (0xff9d84ff) };
-    return c[jlimit (0, 4, i)];
+    StringArray s;
+    for (auto& t : themes()) s.add (t.name);
+    return s;
 }
 
 Font StrataLook::font (float size, bool bold)
@@ -44,12 +60,31 @@ Font StrataLook::font (float size, bool bold)
 
 StrataLook::StrataLook()
 {
-    setAccent (0);
+    setTheme (0);
+}
+
+void StrataLook::setTheme (int index)
+{
+    themeIndex = jlimit (0, (int) themes().size() - 1, index);
+    const auto& t = themes()[(size_t) themeIndex];
+    colours::bg = Colour (t.bg);
+    colours::panel = Colour (t.panel);
+    colours::panelLight = Colour (t.panelLight);
+    colours::outline = Colour (t.outline);
+    colours::text = Colour (t.text);
+    colours::textDim = Colour (t.textDim);
+    colours::display = Colour (t.display);
+    colours::mod = Colour (t.mod);
+    colours::envColour = Colour (t.env);
+    colours::macroColour = Colour (t.macro);
+    accent = Colour (t.accent);
+
     setColour (ResizableWindow::backgroundColourId, colours::bg);
     setColour (Label::textColourId, colours::text);
     setColour (TextButton::buttonColourId, colours::panelLight);
     setColour (TextButton::textColourOffId, colours::text);
-    setColour (TextButton::textColourOnId, colours::bg);
+    setColour (TextButton::textColourOnId, accent.getPerceivedBrightness() > 0.6f ? Colour (0xff111111) : Colours::white);
+    setColour (TextButton::buttonOnColourId, accent);
     setColour (ComboBox::backgroundColourId, colours::panelLight);
     setColour (ComboBox::textColourId, colours::text);
     setColour (ComboBox::outlineColourId, colours::outline);
@@ -57,35 +92,32 @@ StrataLook::StrataLook()
     setColour (PopupMenu::backgroundColourId, colours::panel);
     setColour (PopupMenu::textColourId, colours::text);
     setColour (PopupMenu::headerTextColourId, colours::textDim);
+    setColour (PopupMenu::highlightedBackgroundColourId, accent.withAlpha (0.25f));
+    setColour (PopupMenu::highlightedTextColourId, colours::text);
     setColour (TextEditor::backgroundColourId, colours::panelLight);
     setColour (TextEditor::textColourId, colours::text);
     setColour (TextEditor::outlineColourId, colours::outline);
+    setColour (TextEditor::focusedOutlineColourId, accent);
+    setColour (TextEditor::highlightColourId, accent.withAlpha (0.35f));
     setColour (ListBox::backgroundColourId, colours::panel);
+    setColour (ListBox::outlineColourId, colours::outline);
     setColour (ScrollBar::thumbColourId, colours::outline);
     setColour (AlertWindow::backgroundColourId, colours::panel);
     setColour (AlertWindow::textColourId, colours::text);
     setColour (AlertWindow::outlineColourId, colours::outline);
     setColour (Slider::textBoxTextColourId, colours::text);
     setColour (Slider::textBoxOutlineColourId, Colours::transparentBlack);
+    setColour (TooltipWindow::backgroundColourId, colours::panelLight);
+    setColour (TooltipWindow::textColourId, colours::text);
+    setColour (TooltipWindow::outlineColourId, colours::outline);
     setColour (MidiKeyboardComponent::whiteNoteColourId, Colour (0xffe9edf3));
     setColour (MidiKeyboardComponent::blackNoteColourId, Colour (0xff1d222b));
     setColour (MidiKeyboardComponent::keySeparatorLineColourId, Colour (0xff9aa3b2));
     setColour (MidiKeyboardComponent::shadowColourId, Colours::black.withAlpha (0.25f));
     setColour (MidiKeyboardComponent::upDownButtonBackgroundColourId, colours::panelLight);
     setColour (MidiKeyboardComponent::upDownButtonArrowColourId, colours::text);
-}
-
-void StrataLook::setAccent (int index)
-{
-    accent = accentColour (index);
-    setColour (PopupMenu::highlightedBackgroundColourId, accent.withAlpha (0.25f));
-    setColour (PopupMenu::highlightedTextColourId, colours::text);
-    setColour (TextEditor::focusedOutlineColourId, accent);
-    setColour (TextEditor::highlightColourId, accent.withAlpha (0.35f));
-    setColour (ListBox::outlineColourId, colours::outline);
     setColour (MidiKeyboardComponent::keyDownOverlayColourId, accent.withAlpha (0.7f));
     setColour (MidiKeyboardComponent::mouseOverKeyOverlayColourId, accent.withAlpha (0.25f));
-    setColour (TextButton::buttonOnColourId, accent);
 }
 
 //==============================================================================

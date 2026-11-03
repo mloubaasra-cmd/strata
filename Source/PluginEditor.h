@@ -21,6 +21,7 @@ public:
     void resized() override;
     void tick();
     void setTab (int tab);
+    void setTheme (int index);
     void startTutorial();
     TutorialOverlay& getTutorial() { return tutorial; }
     void showSaveDialog();
