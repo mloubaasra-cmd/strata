@@ -43,7 +43,7 @@ Requirements: Visual Studio 2022 (Desktop development with C++), CMake 3.22+, Gi
 JUCE 8.0.4 is downloaded automatically on first configure.
 
 ```bat
-cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake -B build -A x64
 cmake --build build --config Release --target Strata_VST3 Strata_Standalone
 ```
 
