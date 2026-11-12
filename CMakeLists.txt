@@ -53,7 +53,8 @@ set(STRATA_SOURCES
     Source/UI/Pages.cpp
     Source/UI/PresetBrowser.cpp
     Source/UI/Tutorial.cpp
-    Source/PluginEditor.cpp)
+    Source/PluginEditor.cpp
+    Source/Lessons.cpp)
 
 target_sources(Strata PRIVATE ${STRATA_SOURCES})
 target_include_directories(Strata PRIVATE Source)

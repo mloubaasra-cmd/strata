@@ -5,6 +5,7 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 #include <chrono>
+#include <set>
 
 using namespace juce;
 using namespace strata;
@@ -29,6 +30,19 @@ static void checkWavetables()
     }
 }
 
+static constexpr double kTargetDb = -15.0;
+
+static std::vector<int> notesFor (const String& cat, const String& name)
+{
+    auto has = [&name] (const char* w) { return name.containsIgnoreCase (w); };
+    if (cat == "Bass" || cat == "Growl" || cat == "Sub & 808" || cat == "Dubstep & Riddim"
+        || has ("808") || has ("Bass") || has ("Rumble") || has ("Acid") || has ("303") || ((has ("Wobble") || has ("Wub")) && ! has ("Chords")))
+        return { 36 };
+    if (cat == "Lead" || cat == "FX" || has ("Lead") || has ("Flute") || has ("Screech") || has ("Sequence") || has ("Blip"))
+        return { 72 };
+    return { 60, 64, 67, 71 };
+}
+
 int main (int argc, char** argv)
 {
     ScopedJuceInitialiser_GUI init;
@@ -42,6 +56,9 @@ int main (int argc, char** argv)
     proc.prepareToPlay (sr, block);
 
     const auto& presets = getFactoryPresets();
+    struct Loud { String name; double db; float peak; };
+    std::vector<Loud> loudness;
+    std::set<String> names;
     std::printf ("\nRendering %d factory presets...\n", (int) presets.size());
     int problems = 0;
     double totalRenderSec = 0.0, totalAudioSec = 0.0;
@@ -52,14 +69,13 @@ int main (int argc, char** argv)
         proc.prepareToPlay (sr, block);   // resets voices / fx between presets
 
         const auto cat = presets[(size_t) p].category;
-        std::vector<int> notes;
-        if (cat == "Bass" || cat == "Growl" || cat == "Sub & 808") notes = { 36 };
-        else if (cat == "Lead" || cat == "FX") notes = { 72 };
-        else notes = { 60, 64, 67, 71 };
+        const auto& nm = presets[(size_t) p].name;
+        std::vector<int> notes = notesFor (cat, nm);
 
         AudioBuffer<float> buf (2, block);
         const int holdBlocks = (int) (2.0 * sr / block), releaseBlocks = (int) (1.5 * sr / block);
         float peak = 0.0f; double sumSq = 0.0; long n = 0; bool nan = false;
+        const int win = (int) (0.1 * sr); double winSum = 0.0; int winN = 0; double maxWin = 0.0;
 
         const auto t0 = std::chrono::high_resolution_clock::now();
         for (int b = 0; b < holdBlocks + releaseBlocks; ++b)
@@ -68,24 +84,65 @@ int main (int argc, char** argv)
             if (b == 0) for (int nn : notes) midi.addEvent (MidiMessage::noteOn (1, nn, (uint8) 100), 0);
             if (b == holdBlocks) for (int nn : notes) midi.addEvent (MidiMessage::noteOff (1, nn), 0);
             proc.processBlock (buf, midi);
-            for (int c = 0; c < 2; ++c)
-                for (int i = 0; i < block; ++i)
+            for (int i = 0; i < block; ++i)
+            {
+                for (int c = 0; c < 2; ++c)
                 {
                     const float v = buf.getSample (c, i);
                     if (! std::isfinite (v)) nan = true;
                     peak = jmax (peak, std::abs (v));
                     sumSq += (double) v * v; ++n;
+                    winSum += (double) v * v * 0.5;
                 }
+                if (++winN >= win) { maxWin = jmax (maxWin, winSum / winN); winSum = 0.0; winN = 0; }
+            }
         }
         const auto t1 = std::chrono::high_resolution_clock::now();
         totalRenderSec += std::chrono::duration<double> (t1 - t0).count();
         totalAudioSec += (holdBlocks + releaseBlocks) * block / sr;
 
         const double rms = std::sqrt (sumSq / (double) jmax (1L, n));
+        const double loudDb = 10.0 * std::log10 (jmax (1.0e-12, maxWin));
         const bool bad = nan || peak < 0.01f || rms < 0.002;
         if (bad) ++problems;
-        std::printf ("%3d %-20s %-16s peak %6.3f  rms %6.4f  mods %d %s\n", p, presets[(size_t) p].name.toRawUTF8(), cat.toRawUTF8(),
-                     peak, rms, (int) proc.getModulations().size(), nan ? "NaN!" : (bad ? "<-- CHECK" : ""));
+        if (names.count (nm)) { std::printf ("DUPLICATE NAME: %s\n", nm.toRawUTF8()); ++problems; }
+        names.insert (nm);
+        loudness.push_back ({ nm, loudDb, peak });
+        std::printf ("%3d %-20s %-16s peak %6.3f  loud %6.1f dB  mods %d %s\n", p, nm.toRawUTF8(), cat.toRawUTF8(),
+                     peak, loudDb, (int) proc.getModulations().size(), nan ? "NaN!" : (bad ? "<-- CHECK" : ""));
+    }
+
+    {
+        std::vector<double> v;
+        for (auto& l : loudness) v.push_back (l.db);
+        std::sort (v.begin(), v.end());
+        std::printf ("\nLoudness (max 100 ms RMS): min %.1f  median %.1f  max %.1f dB, spread %.1f dB\n",
+                     v.front(), v[v.size() / 2], v.back(), v.back() - v.front());
+    }
+
+    // --levels <PresetLevels.inc>: rewrite per-preset trims towards the target loudness
+    if (argc > 2 && String (argv[1]) == "--levels")
+    {
+        const File f (argv[2]);
+        std::map<String, float> old;
+        StringArray lines;
+        f.readLines (lines);
+        for (auto& line : lines)
+        {
+            const auto name = line.fromFirstOccurrenceOf ("\"", false, false).upToLastOccurrenceOf ("\"", false, false);
+            const auto value = line.fromLastOccurrenceOf ("\",", false, false).trim().upToFirstOccurrenceOf ("f", false, false).getFloatValue();
+            if (name.isNotEmpty() && value > 0.0f) old[name] = value;
+        }
+        String out;
+        for (auto& l : loudness)
+        {
+            const float prev = old.count (l.name) ? old[l.name] : 1.0f;
+            const float trim = jlimit (0.1f, 8.0f, prev * (float) std::pow (10.0, (kTargetDb - l.db) / 20.0));
+            out << "            { \"" << l.name << "\", " << String (trim, 4) << "f },\n";
+        }
+        f.replaceWithText (out);
+        std::printf ("Wrote %d trims to %s\n", (int) loudness.size(), f.getFullPathName().toRawUTF8());
+        return 0;
     }
     std::printf ("\nProblems: %d   Render speed: %.1fx realtime (all presets, single thread)\n", problems, totalAudioSec / totalRenderSec);
 
@@ -120,7 +177,7 @@ int main (int argc, char** argv)
     }
 
     // Editor snapshots
-    if (argc > 1)
+    if (argc > 1 && String (argv[1]) != "--levels")
     {
         const File outDir (argv[1]);
         outDir.createDirectory();
@@ -181,6 +238,28 @@ int main (int argc, char** argv)
             FileOutputStream fos (outDir.getChildFile ("knobs.png"));
             fos.setPosition (0); fos.truncate();
             PNGImageFormat().writeImageToStream (sheet, fos);
+        }
+
+        // Lessons: no step may already be "done" on the Init patch, or it would skip itself.
+        {
+            int steps = 0, preDone = 0;
+            for (auto& [name, lesson] : content->getLessons())
+            {
+                proc.getPresetManager().loadFactory (0);
+                for (auto& st : lesson)
+                    if (st.isDone)
+                    {
+                        ++steps;
+                        if (st.isDone()) { ++preDone; std::printf ("  lesson '%s' step '%s' is already complete on Init!\n", name.toRawUTF8(), st.title.toRawUTF8()); }
+                    }
+            }
+            std::printf ("Lessons: %d lessons, %d checked steps, %d pre-completed\n", (int) content->getLessons().size(), steps, preDone);
+            content->startLessonForTest (4);
+            content->getTutorial().goToStep (6);
+            auto li = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
+            FileOutputStream lf (outDir.getChildFile ("lesson.png"));
+            lf.setPosition (0); lf.truncate();
+            PNGImageFormat().writeImageToStream (li, lf);
         }
 
         content->startTutorial();

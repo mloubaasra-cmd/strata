@@ -24,18 +24,23 @@ public:
     void setTheme (int index);
     void startTutorial();
     TutorialOverlay& getTutorial() { return tutorial; }
+    const auto& getLessons() const { return lessons; }
+    void startLessonForTest (int i) { startLesson (i); }
     void showSaveDialog();
 
     UIContext ctx;
 
 private:
     void buildTutorial();
+    void buildLessons();
+    void showLearnMenu();
+    void startLesson (int index);
     void knobStylesChanged();
 
     juce::TextButton synthTab { "SYNTH" }, matrixTab { "MATRIX" }, fxTab { "FX" };
     PresetBar presetBar;
     juce::ComboBox knobStyleBox, accentBox;
-    juce::TextButton tourButton { "? TOUR" };
+    juce::TextButton tourButton { "LEARN" };
 
     SynthPage synth;
     MatrixPage matrix;
@@ -43,6 +48,8 @@ private:
     juce::MidiKeyboardComponent keyboard;
     PresetBrowser browser;
     TutorialOverlay tutorial;
+    std::vector<TutorialStep> tourSteps;
+    std::vector<std::pair<juce::String, std::vector<TutorialStep>>> lessons;
 
     int currentTab = 0;
     int lastVersion = -1;

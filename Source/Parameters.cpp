@@ -144,7 +144,7 @@ namespace params
         ch ("voice_mode", "Voice Mode", voiceModes(), 0);
         fl ("glide", "Glide", NormalisableRange<float> (0.0f, 2.0f, 0.0f, 0.4f), 0.0f, fmtTime);
         in ("bend_range", "Bend Range", 1, 24, 2);
-        fl ("master", "Master", NormalisableRange<float> (0.0f, 1.5f, 0.0f, 0.6f), 0.7f, fmtDb);
+        fl ("master", "Master", NormalisableRange<float> (0.0f, 2.5f, 0.0f, 0.5f), 0.7f, fmtDb);
 
         // Effects
         bo ("dist_on", "Dist On", false);

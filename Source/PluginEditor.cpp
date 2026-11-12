@@ -45,8 +45,8 @@ MainContent::MainContent (StrataProcessor& p, StrataLook& look)
     accentBox.setTooltip ("Colour theme");
     accentBox.onChange = [this] { setTheme (accentBox.getSelectedId() - 1); };
 
-    tourButton.setTooltip ("Interactive tour of the synth");
-    tourButton.onClick = [this] { startTutorial(); };
+    tourButton.setTooltip ("Quick tour and hands-on sound design lessons");
+    tourButton.onClick = [this] { showLearnMenu(); };
 
     presetBar.onOpenBrowser = [this] { browser.open(); };
     presetBar.onSave = [this] { showSaveDialog(); };
@@ -68,6 +68,7 @@ MainContent::MainContent (StrataProcessor& p, StrataLook& look)
 
     tutorial.onFinished = [this] { ctx.proc.uiSettings.setTutorialSeen (true); };
     buildTutorial();
+    buildLessons();
 
     setTab (0);
     setSize (kWidth, kHeight);
@@ -198,6 +199,7 @@ void MainContent::startTutorial()
 {
     browser.setVisible (false);
     setTab (0);
+    tutorial.setSteps (tourSteps);
     tutorial.start();
 }
 
@@ -219,7 +221,7 @@ void MainContent::buildTutorial()
                    {}, {}, {}, {} });
 
     s.push_back ({ "Presets",
-                   "There are " + String ((int) getFactoryPresets().size()) + " factory presets. Click the name to open the browser "
+                   "There are " + String ((int) getFactoryPresets().size() - 1) + " factory presets, level-matched so they drop straight into a mix. Click the name to open the browser "
                    "(categories, search, click to audition) or step through them with the arrows.",
                    "load a different preset",
                    [this] { std::vector<Component*> v { &presetBar }; if (browser.isVisible()) v.push_back (&browser); return v; },
@@ -319,12 +321,13 @@ void MainContent::buildTutorial()
 
     s.push_back ({ "Save your sound",
                    "Happy with it? SAVE stores it as a user preset in Documents/Strata/User Presets, under the category you "
-                   "choose. Replay this tour any time with the ? TOUR button. Have fun!",
+                   "choose. The LEARN button replays this tour and has 7 hands-on lessons that teach you to build basses, leads, pads and more from scratch.",
                    {},
                    [this] { return std::vector<Component*> { &presetBar.save, &tourButton }; },
                    [this] { setTab (0); }, {} });
 
-    tutorial.setSteps (std::move (s));
+    tourSteps = std::move (s);
+    tutorial.setSteps (tourSteps);
 }
 
 //==============================================================================

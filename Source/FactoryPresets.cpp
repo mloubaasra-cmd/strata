@@ -409,6 +409,616 @@ namespace
         b.set ("master", e.flavour == 1 ? 0.9f : 1.25f);
     }
 
+    // ---- helpers for the genre recipes --------------------------------------------
+    // Sidechain-style volume pump on both oscillators, driven by a free LFO.
+    void pump (PresetBuilder& b, int lfo, int div, float depth)
+    {
+        lfoSync (b, lfo, params::lfoCustom, div);
+        b.set (ids::lfo (lfo, "retrig"), 0);
+        b.curve (lfo, { { 0.0f, 0.0f }, { 0.28f, 0.75f }, { 0.55f, 1.0f }, { 1.0f, 1.0f } });
+        b.modulate (mod::srcLfo1 + lfo, "oscA_level", depth);
+        b.modulate (mod::srcLfo1 + lfo, "oscB_level", depth);
+        b.set (O (0, "level"), 0.55f).set (O (1, "level"), 0.4f);
+    }
+
+    // Short pitch envelope on ENV 3 (positive = drops into the note, negative = bends up into it).
+    void pitchEnv (PresetBuilder& b, float decay, float semis, bool bothOscs = true)
+    {
+        env (b, 2, 0.001f, decay, 0.0f, decay);
+        b.modulate (mod::srcEnv3, "oscA_semi", semis / 48.0f);
+        if (bothOscs) b.modulate (mod::srcEnv3, "oscB_semi", semis / 48.0f);
+    }
+
+    void tapeWobble (PresetBuilder& b, int lfo, float cents)
+    {
+        lfoFree (b, lfo, params::lfoSmoothRandom, 0.35f);
+        b.set (ids::lfo (lfo, "retrig"), 0);
+        b.modulate (mod::srcLfo1 + lfo, "oscA_fine", cents / 200.0f);
+        b.modulate (mod::srcLfo1 + lfo, "oscB_fine", cents / 200.0f);
+    }
+
+    void mono (PresetBuilder& b, float glideTime, bool legato = true)
+    {
+        b.set ("voice_mode", (float) (legato ? params::modeLegato : params::modeMono)).set ("glide", glideTime);
+    }
+
+    // ---- Supersaw & EDM -----------------------------------------------------------
+    void makeSupersaw (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : r.range (0.3f, 0.7f), 7 + r.nextInt (2), r.range (0.3f, 0.42f), 0.7f);
+        b.set (O (0, "blend"), 0.85f).set (O (0, "width"), 1.0f);
+        if (e.bankB >= 0)
+        {
+            osc (b, 1, e.bankB, e.bankB == bBasic ? posSaw : r.range (0.3f, 0.7f), 5, 0.35f, 0.45f, e.flavour == 2 ? -1 : 1);
+            b.set (O (1, "width"), 1.0f);
+        }
+        filter (b, params::fLP12, r.range (5000.0f, 11000.0f), 0.12f, 0.1f);
+        env (b, 0, 0.006f, 0.6f, 0.85f, r.range (0.25f, 0.45f));
+        env (b, 1, 0.001f, 0.4f, 0.4f, 0.3f);
+
+        switch (e.flavour)
+        {
+            case 0:   // lead
+                vibrato (b, 1, 8.0f);
+                mono (b, 0.04f);
+                b.set ("voice_mode", (float) params::modePoly);
+                chorus (b, 0.2f);
+                break;
+            case 1:   // stab
+                env (b, 0, 0.003f, 0.35f, 0.0f, 0.3f);
+                filter (b, params::fLP12, r.range (2000.0f, 4000.0f), 0.15f, 0.4f);
+                env (b, 1, 0.001f, 0.25f, 0.0f, 0.2f);
+                break;
+            case 2:   // pumping chords
+                pump (b, 3, d4, 0.35f);
+                break;
+            case 3:   // pluck
+                env (b, 0, 0.002f, 0.5f, 0.25f, 0.3f);
+                filter (b, params::fLP12, 1500.0f, 0.15f, 0.5f);
+                env (b, 1, 0.001f, 0.22f, 0.05f, 0.25f);
+                break;
+            default:  // screech
+                b.set (O (0, "warpMode"), (float) params::warpSync).set (O (0, "warp"), 0.2f);
+                env (b, 2, 0.001f, 0.3f, 0.2f, 0.3f);
+                b.modulate (mod::srcEnv3, "oscA_warp", 0.4f);
+                dist (b, params::distHard, 0.35f, 0.7f);
+                mono (b, 0.05f);
+                break;
+        }
+        delay (b, 0.18f, d8D, 0.35f);
+        reverb (b, 0.25f, 0.75f);
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.35f);
+        b.modulate (mod::srcMacro2, "oscA_detune", 0.4f);
+    }
+
+    // ---- Future Bass --------------------------------------------------------------
+    void makeFutureBass (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : r.range (0.25f, 0.65f), 6, r.range (0.24f, 0.32f), 0.7f);
+        if (e.bankB >= 0) osc (b, 1, e.bankB, e.bankB == bBasic ? posSaw : r.range (0.2f, 0.6f), 4, 0.3f, 0.4f, 1);
+        filter (b, params::fLP12, r.range (3500.0f, 7000.0f), 0.18f, 0.2f);
+        env (b, 0, 0.003f, 0.5f, 0.8f, 0.35f);
+        env (b, 1, 0.001f, 0.35f, 0.3f, 0.3f);
+        pitchEnv (b, 0.12f, -1.0f);   // tiny bend up into every chord
+
+        switch (e.flavour)
+        {
+            case 0: pump (b, 3, d4, 0.3f); break;
+            case 1:
+                lfoSync (b, 0, params::lfoSine, d8);
+                b.modulate (mod::srcLfo1, "flt_cutoff", 0.3f);
+                pump (b, 3, d4, 0.25f);
+                break;
+            case 2:
+                lfoSync (b, 0, params::lfoSampleHold, d8);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.4f);
+                b.modulate (mod::srcLfo1, "oscB_pos", 0.3f);
+                env (b, 0, 0.002f, 0.4f, 0.5f, 0.25f);
+                break;
+            case 3:
+                b.set (O (0, "warpMode"), (float) params::warpPwm).set (O (0, "warp"), 0.3f);
+                lfoSync (b, 0, params::lfoTri, d8);
+                b.modulate (mod::srcLfo1, "oscA_warp", 0.35f);
+                b.modulate (mod::srcLfo1, "flt_cutoff", 0.2f);
+                break;
+            default:
+                env (b, 0, 0.002f, 0.45f, 0.1f, 0.35f);
+                filter (b, params::fLP12, 1500.0f, 0.2f, 0.45f);
+                env (b, 1, 0.001f, 0.25f, 0.0f, 0.25f);
+                break;
+        }
+        chorus (b, 0.35f);
+        delay (b, 0.15f, d8D, 0.35f);
+        reverb (b, 0.3f, 0.75f);
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.4f);
+        b.modulate (mod::srcModWheel, "oscA_pos", 0.3f);
+    }
+
+    // ---- Dubstep & Riddim ---------------------------------------------------------
+    void makeDubstep (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        osc (b, 0, e.bankA, r.range (0.2f, 0.6f), e.flavour == 1 ? 1 : 2, 0.12f, 0.8f);
+        if (e.bankB >= 0) osc (b, 1, e.bankB, r.range (0.2f, 0.7f), 1, 0.1f, 0.55f, 0, e.flavour % 2 == 0 ? 12.0f : 0.0f);
+        b.set ("sub_on", 1).set ("sub_wave", 0).set ("sub_oct", -1).set ("sub_level", 0.55f);
+        filter (b, params::fLP12, r.range (1200.0f, 2400.0f), r.range (0.35f, 0.6f), 0.0f, 0.4f);
+        env (b, 0, 0.002f, 0.5f, 1.0f, 0.08f);
+        mono (b, 0.04f);
+
+        static const int divs[]   = { d8, d8T, d16, d4, d16T, d4T };
+        static const int shapes[] = { params::lfoSine, params::lfoSquare, params::lfoCustom, params::lfoSawDown, params::lfoSampleHold, params::lfoTri };
+        static const int warps[]  = { params::warpBend, params::warpFold, params::warpSync, params::warpFold, params::warpMirror, params::warpBend };
+        const int f = e.flavour % 6;
+        lfoSync (b, 0, shapes[f], divs[f]);
+        if (shapes[f] == params::lfoCustom)
+            b.curve (0, { { 0.0f, 1.0f }, { 0.2f, 0.1f }, { 0.25f, 0.9f }, { 0.45f, 0.2f }, { 0.5f, 0.0f }, { 0.62f, 1.0f }, { 0.8f, 0.4f }, { 1.0f, 1.0f } });
+        b.modulate (mod::srcLfo1, "oscA_pos", 0.35f);
+        b.modulate (mod::srcLfo1, "flt_cutoff", 0.3f);
+        if (e.bankB >= 0) b.modulate (mod::srcLfo1, "oscB_pos", 0.3f);
+        b.set (O (0, "warpMode"), (float) warps[f]).set (O (0, "warp"), r.range (0.2f, 0.4f));
+        b.modulate (mod::srcMacro1, "oscA_warp", 0.5f);
+        b.modulate (mod::srcMacro2, "flt_res", 0.3f);
+        dist (b, f == 1 ? params::distHard : (f == 2 ? params::distFold : params::distSoft), r.range (0.4f, 0.6f));
+    }
+
+    // ---- Trap & 808 ---------------------------------------------------------------
+    void makeTrap (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        if (e.flavour <= 3)   // 808s
+        {
+            osc (b, 0, bBasic, e.flavour == 1 ? 0.12f : 0.0f, 1, 0.0f, 0.95f);
+            b.set ("flt_on", 0).set ("bend_range", 12);
+            mono (b, e.flavour == 3 ? 0.2f : r.range (0.06f, 0.1f));
+            env (b, 0, 0.001f, r.range (1.6f, 3.0f), 0.0f, 0.15f);
+            pitchEnv (b, 0.06f, e.flavour == 2 ? 7.0f : 3.0f, false);
+            if (e.flavour == 2) osc (b, 1, bBasic, posTri, 1, 0.0f, 0.22f, 1);
+            dist (b, params::distSoft, e.flavour == 1 ? 0.65f : r.range (0.25f, 0.4f));
+            b.modulate (mod::srcMacro1, "oscA_pos", 0.25f);
+            return;
+        }
+
+        switch (e.flavour)
+        {
+            case 4:   // bells
+                osc (b, 0, e.bankA, r.range (0.4f, 0.8f), 1, 0.1f, 0.75f, 1);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, r.range (0.3f, 0.7f), 1, 0.1f, 0.3f, 2);
+                b.set ("flt_on", 0);
+                env (b, 0, 0.001f, r.range (0.9f, 1.4f), 0.0f, 0.8f);
+                env (b, 2, 0.001f, 0.4f, 0.0f, 0.3f);
+                b.modulate (mod::srcEnv3, "oscA_pos", -0.3f);
+                delay (b, 0.22f, d8, 0.35f);
+                reverb (b, 0.3f, 0.7f);
+                break;
+            case 5:   // dark pluck
+                osc (b, 0, e.bankA, r.range (0.2f, 0.5f), 2, 0.12f, 0.8f);
+                filter (b, params::fLP24, 500.0f, 0.25f, 0.5f, 0.2f, 0.3f);
+                env (b, 0, 0.001f, 0.45f, 0.0f, 0.35f);
+                env (b, 1, 0.001f, 0.2f, 0.0f, 0.2f);
+                delay (b, 0.18f, d8T, 0.3f);
+                reverb (b, 0.25f, 0.6f, 0.7f);
+                break;
+            case 6:   // flute lead
+                osc (b, 0, e.bankA, 0.1f, 1, 0.0f, 0.8f);
+                b.set ("noise_on", 1).set ("noise_level", 0.06f).set ("noise_color", 0.3f);
+                filter (b, params::fLP12, 4500.0f, 0.1f, 0.0f);
+                env (b, 0, 0.04f, 0.4f, 0.85f, 0.25f);
+                vibrato (b, 1, 10.0f);
+                mono (b, 0.05f);
+                delay (b, 0.2f, d8D, 0.35f);
+                reverb (b, 0.35f, 0.8f);
+                break;
+            default:  // brass stab
+                osc (b, 0, e.bankA, posSaw, 4, 0.18f, 0.75f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 3, 0.2f, 0.45f, -1);
+                filter (b, params::fLP24, 700.0f, 0.15f, 0.5f);
+                env (b, 1, 0.03f, 0.35f, 0.2f, 0.25f);
+                env (b, 0, 0.01f, 0.5f, 0.6f, 0.2f);
+                dist (b, params::distSoft, 0.2f, 0.5f);
+                reverb (b, 0.25f, 0.6f);
+                break;
+        }
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.3f);
+    }
+
+    // ---- Lo-fi --------------------------------------------------------------------
+    void makeLofi (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        switch (e.flavour)
+        {
+            case 0:   // keys
+                osc (b, 0, e.bankA, r.range (0.15f, 0.45f), 1, 0.1f, 0.8f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.2f, 1, 0.1f, 0.3f, 1);
+                env (b, 0, 0.003f, 1.4f, 0.3f, 0.5f);
+                filter (b, params::fLP12, 2600.0f, 0.1f, 0.2f, 0.0f, 0.4f);
+                b.modulate (mod::srcVelocity, "flt_cutoff", 0.2f);
+                break;
+            case 1:   // pad
+                osc (b, 0, e.bankA, r.range (0.2f, 0.6f), 4, 0.2f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, r.range (0.2f, 0.6f), 3, 0.2f, 0.4f, -1);
+                env (b, 0, 0.5f, 1.5f, 0.85f, 1.8f);
+                filter (b, params::fLP12, 1800.0f, 0.1f, 0.0f);
+                break;
+            case 2:   // lead
+                osc (b, 0, e.bankA, e.bankA == bBasic ? 0.2f : 0.3f, 1, 0.0f, 0.8f);
+                env (b, 0, 0.02f, 0.4f, 0.8f, 0.3f);
+                filter (b, params::fLP12, 3000.0f, 0.1f, 0.0f);
+                vibrato (b, 1, 9.0f);
+                mono (b, 0.06f);
+                break;
+            case 3:   // bass
+                osc (b, 0, e.bankA, e.bankA == bBasic ? 0.15f : 0.2f, 1, 0.0f, 0.9f);
+                b.set ("sub_on", 1).set ("sub_level", 0.4f);
+                env (b, 0, 0.005f, 0.8f, 0.6f, 0.15f);
+                filter (b, params::fLP24, 600.0f, 0.1f, 0.25f);
+                env (b, 1, 0.001f, 0.25f, 0.2f, 0.2f);
+                mono (b, 0.04f, false);
+                break;
+            default:  // guitar-ish pluck
+                osc (b, 0, e.bankA, r.range (0.1f, 0.4f), 1, 0.1f, 0.85f);
+                env (b, 0, 0.001f, 0.6f, 0.0f, 0.4f);
+                filter (b, params::fLP12, 1200.0f, 0.15f, 0.45f, 0.0f, 0.4f);
+                env (b, 1, 0.001f, 0.15f, 0.0f, 0.2f);
+                break;
+        }
+        tapeWobble (b, 2, 7.0f);
+        b.set ("noise_on", 1).set ("noise_level", 0.05f).set ("noise_color", -0.6f);
+        dist (b, params::distCrush, 0.35f, 0.25f);
+        chorus (b, 0.35f, 0.3f, 0.5f);
+        reverb (b, 0.25f, 0.5f, 0.7f);
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.3f);
+        b.modulate (mod::srcMacro2, "noise_level", 0.3f);
+    }
+
+    // ---- Techno & Acid ------------------------------------------------------------
+    void makeTechno (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        switch (e.flavour)
+        {
+            case 0:   // acid
+                osc (b, 0, e.bankA, e.bankA == bBasic ? (r.nextInt (2) == 0 ? posSaw : posSquare) : 0.3f, 1, 0.0f, 0.85f);
+                filter (b, params::fLP24, r.range (300.0f, 550.0f), r.range (0.7f, 0.8f), 0.55f, 0.3f);
+                env (b, 1, 0.001f, 0.18f, 0.0f, 0.1f);
+                env (b, 0, 0.002f, 0.3f, 0.8f, 0.06f);
+                mono (b, 0.06f);
+                dist (b, params::distSoft, 0.35f);
+                delay (b, 0.15f, d8D, 0.3f);
+                b.modulate (mod::srcVelocity, "flt_env", 0.25f);
+                b.modulate (mod::srcMacro1, "flt_cutoff", 0.4f);
+                b.modulate (mod::srcMacro2, "flt_res", 0.2f);
+                return;
+            case 1:   // stab (fifths)
+                osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : 0.4f, 3, 0.15f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 2, 0.12f, 0.5f, 0, 7.0f);
+                filter (b, params::fLP12, 1500.0f, 0.2f, 0.45f);
+                env (b, 1, 0.001f, 0.2f, 0.0f, 0.2f);
+                env (b, 0, 0.002f, 0.25f, 0.0f, 0.25f);
+                delay (b, 0.3f, d8D, 0.45f);
+                reverb (b, 0.3f, 0.75f);
+                break;
+            case 2:   // rumble (reverb before distortion)
+                osc (b, 0, e.bankA, 0.05f, 1, 0.0f, 0.9f);
+                b.set ("noise_on", 1).set ("noise_level", 0.1f).set ("noise_color", -0.9f);
+                filter (b, params::fLP24, 300.0f, 0.2f, 0.0f);
+                env (b, 0, 0.001f, 1.2f, 0.0f, 0.6f);
+                pitchEnv (b, 0.05f, 12.0f, false);
+                reverb (b, 0.5f, 0.85f, 0.8f);
+                dist (b, params::distSoft, 0.55f);
+                b.fxOrder = { params::fxReverb, params::fxDistortion, params::fxChorus, params::fxPhaser, params::fxDelay };
+                mono (b, 0.0f, false);
+                break;
+            case 3:   // hypnotic sequence
+                osc (b, 0, e.bankA, 0.3f, 1, 0.0f, 0.8f);
+                lfoSync (b, 0, params::lfoTri, d8D);
+                b.set (ids::lfo (0, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.35f);
+                filter (b, params::fLP12, 2000.0f, 0.3f, 0.3f);
+                env (b, 0, 0.001f, 0.25f, 0.0f, 0.2f);
+                env (b, 1, 0.001f, 0.12f, 0.0f, 0.1f);
+                delay (b, 0.3f, d8D, 0.5f);
+                break;
+            default:  // dub chord
+                osc (b, 0, e.bankA, 0.3f, 2, 0.1f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.3f, 2, 0.1f, 0.45f, 0, 7.0f);
+                filter (b, params::fLP12, 1100.0f, 0.25f, 0.25f);
+                env (b, 0, 0.002f, 0.3f, 0.0f, 0.3f);
+                env (b, 1, 0.001f, 0.2f, 0.0f, 0.2f);
+                delay (b, 0.38f, d8D, 0.62f);
+                b.set ("dly_tone", 0.35f);
+                reverb (b, 0.35f, 0.85f, 0.6f);
+                break;
+        }
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.35f);
+    }
+
+    // ---- Retro 80s ----------------------------------------------------------------
+    void makeRetro (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        switch (e.flavour)
+        {
+            case 0:   // poly pad
+                osc (b, 0, e.bankA, 0.3f, 3, 0.15f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.2f, 2, 0.15f, 0.4f, -1);
+                lfoFree (b, 0, params::lfoTri, 0.4f);
+                b.set (ids::lfo (0, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.25f);
+                filter (b, params::fLP24, 2200.0f, 0.15f, 0.15f);
+                env (b, 0, 0.3f, 1.5f, 0.85f, 1.0f);
+                chorus (b, 0.55f, 0.5f, 0.5f);
+                reverb (b, 0.3f, 0.75f);
+                break;
+            case 1:   // brass
+                osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : 0.5f, 3, 0.15f, 0.75f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 2, 0.15f, 0.4f);
+                filter (b, params::fLP24, 900.0f, 0.12f, 0.45f);
+                env (b, 1, 0.08f, 0.5f, 0.5f, 0.3f);
+                env (b, 0, 0.03f, 0.5f, 0.85f, 0.3f);
+                vibrato (b, 1, 6.0f);
+                chorus (b, 0.35f);
+                reverb (b, 0.25f, 0.65f);
+                break;
+            case 2:   // synthwave bass
+                osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : 0.4f, 2, 0.08f, 0.8f);
+                b.set ("sub_on", 1).set ("sub_level", 0.45f);
+                filter (b, params::fLP24, 650.0f, 0.2f, 0.4f);
+                env (b, 1, 0.001f, 0.2f, 0.15f, 0.1f);
+                env (b, 0, 0.002f, 0.4f, 0.75f, 0.08f);
+                mono (b, 0.0f, false);
+                break;
+            case 3:   // arp pluck
+                osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : 0.4f, 2, 0.12f, 0.8f);
+                filter (b, params::fLP24, 900.0f, 0.25f, 0.5f);
+                env (b, 1, 0.001f, 0.18f, 0.0f, 0.15f);
+                env (b, 0, 0.001f, 0.35f, 0.1f, 0.25f);
+                delay (b, 0.3f, d8D, 0.45f);
+                chorus (b, 0.35f);
+                break;
+            case 4:   // lead
+                osc (b, 0, e.bankA, 0.25f, 2, 0.08f, 0.8f);
+                lfoFree (b, 0, params::lfoTri, 0.6f);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.2f);
+                filter (b, params::fLP12, 4000.0f, 0.15f, 0.1f);
+                env (b, 0, 0.01f, 0.4f, 0.85f, 0.3f);
+                vibrato (b, 1, 8.0f);
+                mono (b, 0.07f);
+                delay (b, 0.25f, d8D, 0.4f);
+                reverb (b, 0.3f, 0.75f);
+                break;
+            default:  // strings
+                osc (b, 0, e.bankA, posSaw, 5, 0.22f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.3f, 3, 0.2f, 0.35f, 1);
+                filter (b, params::fLP12, 3000.0f, 0.1f, 0.0f);
+                env (b, 0, 0.45f, 1.0f, 0.9f, 1.2f);
+                chorus (b, 0.5f, 0.4f, 0.6f);
+                b.set ("pha_on", 1).set ("pha_mix", 0.25f).set ("pha_rate", 0.12f);
+                reverb (b, 0.35f, 0.8f);
+                break;
+        }
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.35f);
+        juce::ignoreUnused (r);
+    }
+
+    // ---- Cinematic ----------------------------------------------------------------
+    void makeCinematic (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        switch (e.flavour)
+        {
+            case 0:   // drone
+                osc (b, 0, e.bankA, r.range (0.2f, 0.6f), 6, 0.25f, 0.65f, -1);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, r.range (0.2f, 0.6f), 4, 0.3f, 0.4f, 0, 7.0f);
+                lfoFree (b, 0, params::lfoSmoothRandom, 0.04f);
+                lfoFree (b, 1, params::lfoSine, 0.03f);
+                b.set (ids::lfo (0, "retrig"), 0).set (ids::lfo (1, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.4f);
+                b.modulate (mod::srcLfo2, "oscB_pos", 0.4f);
+                b.modulate (mod::srcLfo2, "flt_cutoff", 0.15f);
+                filter (b, params::fLP12, 2200.0f, 0.2f, 0.0f);
+                env (b, 0, 2.0f, 2.0f, 1.0f, 5.0f);
+                delay (b, 0.25f, d4D, 0.6f);
+                reverb (b, 0.55f, 0.97f, 0.4f);
+                break;
+            case 1:   // evolving texture
+                osc (b, 0, e.bankA, 0.5f, 5, 0.3f, 0.6f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.5f, 3, 0.25f, 0.4f, 1);
+                lfoFree (b, 0, params::lfoSmoothRandom, 0.15f);
+                lfoFree (b, 1, params::lfoSmoothRandom, 0.09f);
+                b.set (ids::lfo (0, "retrig"), 0).set (ids::lfo (1, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.5f);
+                b.modulate (mod::srcLfo2, "oscB_pos", 0.5f);
+                b.modulate (mod::srcLfo1, "oscA_pan", 0.4f);
+                b.modulate (mod::srcLfo2, "flt_cutoff", 0.2f);
+                filter (b, params::fBP, 1800.0f, 0.25f, 0.0f);
+                env (b, 0, 1.2f, 2.0f, 1.0f, 4.0f);
+                b.set ("pha_on", 1).set ("pha_mix", 0.35f).set ("pha_rate", 0.07f);
+                reverb (b, 0.5f, 0.95f, 0.4f);
+                break;
+            case 2:   // tension builder
+                osc (b, 0, e.bankA, 0.2f, 6, 0.3f, 0.6f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.2f, 2, 0.2f, 0.35f, 1);
+                b.set ("noise_on", 1).set ("noise_level", 0.25f);
+                env (b, 2, 7.0f, 1.0f, 1.0f, 1.5f);
+                b.modulate (mod::srcEnv3, "flt_cutoff", 0.5f);
+                b.modulate (mod::srcEnv3, "oscA_pos", 0.7f);
+                b.modulate (mod::srcEnv3, "oscA_semi", 0.25f);
+                lfoFree (b, 0, params::lfoSine, 2.0f);
+                b.modulate (mod::srcEnv3, "lfo1_rate", 0.5f);
+                b.modulate (mod::srcLfo1, "oscA_level", 0.2f);
+                filter (b, params::fLP12, 600.0f, 0.35f, 0.0f);
+                env (b, 0, 0.5f, 1.0f, 1.0f, 2.0f);
+                reverb (b, 0.45f, 0.9f);
+                break;
+            case 3:   // braam
+                osc (b, 0, e.bankA, e.bankA == bBasic ? posSaw : 0.5f, 7, 0.25f, 0.75f, -1);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 5, 0.3f, 0.5f, -2);
+                filter (b, params::fLP24, 500.0f, 0.2f, 0.55f, 0.4f);
+                env (b, 1, 0.15f, 1.5f, 0.3f, 2.0f);
+                env (b, 0, 0.02f, 3.0f, 0.0f, 2.5f);
+                dist (b, params::distSoft, 0.4f);
+                reverb (b, 0.45f, 0.95f, 0.5f);
+                break;
+            case 4:   // shimmer
+                osc (b, 0, e.bankA, r.range (0.4f, 0.8f), 3, 0.15f, 0.65f, 1);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.5f, 2, 0.1f, 0.35f, 2);
+                b.set ("flt_on", 0);
+                env (b, 0, 0.01f, 2.5f, 0.3f, 3.0f);
+                chorus (b, 0.4f);
+                delay (b, 0.35f, d4D, 0.6f);
+                reverb (b, 0.55f, 0.97f, 0.2f);
+                break;
+            default:  // pulse
+                osc (b, 0, e.bankA, e.bankA == bBasic ? posSine : 0.3f, 1, 0.0f, 0.85f, -1);
+                b.set ("sub_on", 1).set ("sub_level", 0.4f);
+                lfoSync (b, 0, params::lfoCustom, d4);
+                b.set (ids::lfo (0, "retrig"), 0);
+                b.curve (0, { { 0.0f, 1.0f }, { 0.12f, 0.15f }, { 0.25f, 0.8f }, { 0.4f, 0.0f }, { 1.0f, 0.0f } });
+                b.modulate (mod::srcLfo1, "oscA_level", 0.4f);
+                b.modulate (mod::srcLfo1, "sub_level", 0.3f);
+                b.set (O (0, "level"), 0.45f).set ("sub_level", 0.3f);
+                filter (b, params::fLP24, 400.0f, 0.2f, 0.0f);
+                env (b, 0, 0.3f, 1.0f, 1.0f, 2.0f);
+                reverb (b, 0.35f, 0.9f, 0.6f);
+                break;
+        }
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.3f);
+        b.modulate (mod::srcMacro2, "oscA_pos", 0.4f);
+    }
+
+    // ---- Vocal & Choir ------------------------------------------------------------
+    void makeVocal (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        switch (e.flavour)
+        {
+            case 0:   // choir pad
+                osc (b, 0, e.bankA, r.range (0.0f, 0.3f), 6, 0.18f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.3f, 4, 0.2f, 0.4f, 1);
+                lfoFree (b, 0, params::lfoSine, r.range (0.08f, 0.2f));
+                b.set (ids::lfo (0, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.3f);
+                env (b, 0, 0.6f, 1.5f, 0.9f, 2.0f);
+                filter (b, params::fLP12, 5000.0f, 0.1f, 0.0f);
+                vibrato (b, 1, 6.0f);
+                chorus (b, 0.45f);
+                reverb (b, 0.45f, 0.9f);
+                break;
+            case 1:   // vocal lead
+                osc (b, 0, e.bankA, 0.2f, 2, 0.1f, 0.8f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.2f, 1, 0.1f, 0.3f);
+                env (b, 2, 0.05f, 0.6f, 0.3f, 0.3f);
+                b.modulate (mod::srcEnv3, "oscA_pos", 0.4f);
+                env (b, 0, 0.03f, 0.4f, 0.85f, 0.3f);
+                vibrato (b, 1, 12.0f);
+                mono (b, 0.08f);
+                filter (b, params::fLP12, 6000.0f, 0.1f, 0.0f);
+                delay (b, 0.22f, d8D, 0.4f);
+                reverb (b, 0.3f, 0.8f);
+                b.modulate (mod::srcModWheel, "oscA_pos", 0.5f);
+                break;
+            case 2:   // talking bass
+                osc (b, 0, e.bankA, 0.3f, 1, 0.0f, 0.85f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.4f, 1, 0.0f, 0.4f, 0, 12.0f);
+                b.set ("sub_on", 1).set ("sub_level", 0.5f);
+                lfoSync (b, 0, params::lfoSmoothRandom, d8);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.5f);
+                if (e.bankB >= 0) b.modulate (mod::srcLfo1, "oscB_pos", 0.4f);
+                filter (b, params::fLP12, 1800.0f, 0.3f, 0.0f, 0.3f);
+                env (b, 0, 0.002f, 0.5f, 1.0f, 0.08f);
+                mono (b, 0.04f);
+                dist (b, params::distSoft, 0.4f);
+                break;
+            case 3:   // aah stab
+                osc (b, 0, e.bankA, 0.0f, 4, 0.2f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 3, 0.2f, 0.3f);
+                env (b, 0, 0.005f, 0.5f, 0.0f, 0.4f);
+                env (b, 2, 0.001f, 0.35f, 0.0f, 0.3f);
+                b.modulate (mod::srcEnv3, "oscA_pos", 0.5f);
+                filter (b, params::fLP12, 4000.0f, 0.1f, 0.0f);
+                delay (b, 0.25f, d8D, 0.4f);
+                reverb (b, 0.35f, 0.8f);
+                break;
+            default:  // whisper
+                osc (b, 0, e.bankA, 0.5f, 4, 0.2f, 0.4f);
+                b.set ("noise_on", 1).set ("noise_level", 0.55f).set ("noise_color", 0.2f);
+                filter (b, params::fBP, 1400.0f, 0.5f, 0.0f);
+                lfoFree (b, 0, params::lfoSmoothRandom, 0.4f);
+                b.set (ids::lfo (0, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "flt_cutoff", 0.25f);
+                b.modulate (mod::srcLfo1, "oscA_pos", 0.4f);
+                env (b, 0, 0.8f, 1.5f, 0.9f, 2.5f);
+                reverb (b, 0.5f, 0.9f);
+                break;
+        }
+        b.modulate (mod::srcMacro1, "oscA_pos", 0.5f);
+    }
+
+    // ---- House & Garage -----------------------------------------------------------
+    void makeHouse (PresetBuilder& b, const Entry& e, FastRandom& r)
+    {
+        switch (e.flavour)
+        {
+            case 0:   // organ bass
+                osc (b, 0, e.bankA, r.range (0.0f, 0.35f), 1, 0.0f, 0.85f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.6f, 1, 0.0f, 0.3f, 1);
+                filter (b, params::fLP12, 1500.0f, 0.15f, 0.2f);
+                env (b, 0, 0.001f, 0.35f, 0.4f, 0.08f);
+                env (b, 1, 0.001f, 0.15f, 0.0f, 0.1f);
+                mono (b, 0.0f, false);
+                break;
+            case 1:   // piano-ish stab
+                osc (b, 0, e.bankA, 0.5f, 1, 0.0f, 0.75f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 2, 0.1f, 0.3f, 1);
+                filter (b, params::fLP12, 2500.0f, 0.1f, 0.3f, 0.0f, 0.4f);
+                env (b, 0, 0.001f, 0.6f, 0.0f, 0.3f);
+                env (b, 1, 0.001f, 0.3f, 0.0f, 0.2f);
+                env (b, 2, 0.001f, 0.25f, 0.0f, 0.2f);
+                b.modulate (mod::srcEnv3, "oscA_pos", 0.3f);
+                reverb (b, 0.2f, 0.55f);
+                break;
+            case 2:   // deep house pad
+                osc (b, 0, e.bankA, posSaw, 4, 0.18f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.3f, 2, 0.15f, 0.35f);
+                filter (b, params::fLP24, 900.0f, 0.25f, 0.15f);
+                lfoSync (b, 0, params::lfoSine, d2Bars);
+                b.set (ids::lfo (0, "retrig"), 0);
+                b.modulate (mod::srcLfo1, "flt_cutoff", 0.15f);
+                env (b, 0, 0.15f, 1.0f, 0.85f, 0.8f);
+                chorus (b, 0.4f);
+                reverb (b, 0.35f, 0.8f);
+                break;
+            case 3:   // garage / speed-garage bass
+                osc (b, 0, e.bankA, 0.4f, 1, 0.0f, 0.85f);
+                b.set ("sub_on", 1).set ("sub_level", 0.5f);
+                b.set (O (0, "warpMode"), (float) params::warpPwm).set (O (0, "warp"), 0.3f);
+                lfoSync (b, 0, params::lfoSine, d8);
+                b.modulate (mod::srcLfo1, "flt_cutoff", 0.25f);
+                b.modulate (mod::srcLfo1, "oscA_warp", 0.25f);
+                filter (b, params::fLP12, 900.0f, 0.45f, 0.0f, 0.3f);
+                env (b, 0, 0.002f, 0.5f, 0.9f, 0.08f);
+                mono (b, 0.03f);
+                dist (b, params::distSoft, 0.3f);
+                break;
+            case 4:   // rave hoover
+                osc (b, 0, e.bankA, posSaw, 8, 0.5f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, posSaw, 6, 0.45f, 0.5f, -1);
+                b.set (O (0, "warpMode"), (float) params::warpPwm).set (O (0, "warp"), 0.35f);
+                pitchEnv (b, 0.25f, -3.0f);
+                filter (b, params::fLP12, 4500.0f, 0.15f, 0.0f);
+                env (b, 0, 0.01f, 0.5f, 0.85f, 0.4f);
+                mono (b, 0.12f);
+                chorus (b, 0.4f);
+                dist (b, params::distSoft, 0.25f, 0.5f);
+                reverb (b, 0.25f, 0.7f);
+                break;
+            default:  // pumping stab
+                osc (b, 0, e.bankA, posSaw, 4, 0.2f, 0.7f);
+                if (e.bankB >= 0) osc (b, 1, e.bankB, 0.4f, 3, 0.2f, 0.4f, 1);
+                filter (b, params::fLP12, 1800.0f, 0.2f, 0.3f);
+                env (b, 0, 0.003f, 0.6f, 0.6f, 0.3f);
+                pump (b, 3, d4, 0.35f);
+                delay (b, 0.2f, d8D, 0.35f);
+                reverb (b, 0.3f, 0.75f);
+                break;
+        }
+        b.modulate (mod::srcMacro1, "flt_cutoff", 0.35f);
+    }
+
     using Recipe = void (*) (PresetBuilder&, const Entry&, FastRandom&);
 
     struct Category { const char* name; Recipe recipe; std::vector<Entry> entries; };
@@ -487,8 +1097,84 @@ namespace
             { "Sub & 808", makeSub, {
                 { "808 Classic", bBasic, -1, 0 }, { "808 Distorted", bBasic, -1, 1 }, { "Clean Sub", bBasic, -1, 2 },
                 { "Sub Glide", bBasic, -1, 3 }, { "Kick Bass", bBasic, -1, 4 }, { "Boom Sine", bBasic, -1, 5 } } },
+            { "Supersaw & EDM", makeSupersaw, {
+                { "Main Stage Lead", bBasic, bBasic, 0 }, { "Festival Chords", bBasic, bBasic, 2 }, { "Euphoric Stab", bBasic, bBasic, 1 },
+                { "Hands Up", bBasic, bSync, 0 }, { "Big Room Pluck", bBasic, -1, 3 }, { "Hardstyle Screech", bSawFold, bSync, 4 },
+                { "Trance Supersaw", bBasic, bHarm, 0 }, { "Sidechain Chords", bBasic, bPwm, 2 }, { "Progressive Stab", bHarm, bBasic, 1 },
+                { "Laser Lead", bSync, bBasic, 4 }, { "Uplifter Lead", bBasic, bBasic, 0 }, { "Bright Pluck Chords", bHarm, -1, 3 } } },
+
+            { "Future Bass", makeFutureBass, {
+                { "Future Chords", bBasic, bPwm, 0 }, { "Wobble Chords", bBasic, bBasic, 1 }, { "Vocal Chop Synth", bFormant, bFormant, 2 },
+                { "Squelch Chords", bPwm, bBasic, 3 }, { "Kawaii Pluck", bHarm, bFm, 4 }, { "Sunrise Chords", bSpectral, bBasic, 0 },
+                { "Bitter Sweet", bOrgan, bPwm, 1 }, { "Color Bass", bGrowl, bBasic, 3 }, { "Glitter Pluck", bFm, bHarm, 4 },
+                { "Heartbeat Chords", bBasic, bSpectral, 0 } } },
+
+            { "Dubstep & Riddim", makeDubstep, {
+                { "Riddim Saw", bPwm, -1, 1 }, { "Robot Growl", bFormant, bFm, 4 }, { "Tearout", bGrowl, bSawFold, 2 },
+                { "Neuro Grind", bFm, bDigital, 3 }, { "Wobble Classic", bBasic, bBasic, 0 }, { "Triplet Wub", bGrowl, bFormant, 5 },
+                { "Metal Throat", bFm, bSync, 2 }, { "Cyborg Talk", bFormant, bDigital, 4 }, { "Riddim Square", bPwm, bPwm, 1 },
+                { "Hydraulic", bDigital, bGrowl, 3 } } },
+
+            { "Trap & 808", makeTrap, {
+                { "808 Boom", bBasic, -1, 0 }, { "808 Grit", bBasic, -1, 1 }, { "808 Knock", bBasic, -1, 2 }, { "808 Slide", bBasic, -1, 3 },
+                { "Trap Bells", bFm, bFm, 4 }, { "Dark Pluck", bPluck, -1, 5 }, { "Night Flute", bBasic, -1, 6 },
+                { "Trap Brass", bBasic, bBasic, 7 }, { "Glo Bells", bHarm, bFm, 4 }, { "Drill Pluck", bDigital, -1, 5 } } },
+
+            { "Lo-fi", makeLofi, {
+                { "Dusty Keys", bFm, bOrgan, 0 }, { "Rainy Window Pad", bSpectral, bHarm, 1 }, { "Cassette Lead", bBasic, -1, 2 },
+                { "Warm Tape Bass", bBasic, -1, 3 }, { "Lofi Guitar", bPluck, -1, 4 }, { "Study Keys", bOrgan, -1, 0 },
+                { "Faded Pad", bFormant, bBasic, 1 }, { "Wobbly Flute", bOrgan, -1, 2 }, { "Muted Bass", bPwm, -1, 3 },
+                { "Vinyl Pluck", bHarm, -1, 4 } } },
+
+            { "Techno & Acid", makeTechno, {
+                { "Acid Line", bBasic, -1, 0 }, { "303 Squelch", bPwm, -1, 0 }, { "Warehouse Stab", bBasic, bBasic, 1 },
+                { "Rumble Kick Bass", bBasic, -1, 2 }, { "Hypnotic Sequence", bFm, -1, 3 }, { "Dub Chord", bOrgan, bBasic, 4 },
+                { "Berlin Stab", bSawFold, bBasic, 1 }, { "Industrial Rumble", bDigital, -1, 2 }, { "Minimal Blip", bHarm, -1, 3 },
+                { "Echo Chord", bPwm, bPwm, 4 } } },
+
+            { "Retro 80s", makeRetro, {
+                { "Juno Pad", bPwm, -1, 0 }, { "Polysynth Brass", bBasic, bBasic, 1 }, { "Synthwave Bass", bBasic, -1, 2 },
+                { "Outrun Arp", bBasic, -1, 3 }, { "Miami Lead", bPwm, -1, 4 }, { "Vintage Strings", bBasic, bPwm, 5 },
+                { "Neon Pad", bSpectral, bPwm, 0 }, { "Chrome Brass", bSawFold, bBasic, 1 }, { "Night Rider Bass", bPwm, -1, 2 },
+                { "VHS Arp", bDigital, -1, 3 } } },
+
+            { "Cinematic", makeCinematic, {
+                { "Endless Drone", bSpectral, bHarm, 0 }, { "Living Texture", bFormant, bSpectral, 1 }, { "Tension Builder", bSync, bDigital, 2 },
+                { "Braam", bBasic, bBasic, 3 }, { "Shimmer Bells", bFm, bHarm, 4 }, { "Deep Pulse", bBasic, -1, 5 },
+                { "Abyss", bGrowl, bSpectral, 0 }, { "Glass Texture", bHarm, bFm, 1 }, { "Doom Horn", bSawFold, bBasic, 3 },
+                { "Ghost Pulse", bFormant, -1, 5 } } },
+
+            { "Vocal & Choir", makeVocal, {
+                { "Choir of Angels", bFormant, bFormant, 0 }, { "Vox Lead", bFormant, -1, 1 }, { "Talk Box Bass", bFormant, -1, 2 },
+                { "Aah Stab", bFormant, bBasic, 3 }, { "Whisper Pad", bFormant, -1, 4 }, { "Robot Choir", bFormant, bDigital, 0 },
+                { "Ooh Lead", bFormant, bOrgan, 1 }, { "Vowel Bass", bFormant, bGrowl, 2 } } },
+
+            { "House & Garage", makeHouse, {
+                { "Organ Bass", bOrgan, -1, 0 }, { "House Stab", bFm, bBasic, 1 }, { "Deep House Pad", bBasic, bPwm, 2 },
+                { "Garage Bass", bPwm, -1, 3 }, { "Rave Hoover", bBasic, bBasic, 4 }, { "Pumping Stab", bBasic, bHarm, 5 },
+                { "Jackin Organ", bOrgan, bOrgan, 0 }, { "Speed Garage Wobble", bGrowl, -1, 3 } } },
         };
         return c;
+    }
+}
+
+namespace
+{
+    // Per-preset loudness trim, measured offline by StrataTest --levels (see README).
+    float levelTrim (const String& name)
+    {
+        static const std::map<String, float> trims {
+           #include "PresetLevels.inc"
+        };
+        auto it = trims.find (name);
+        return it != trims.end() ? it->second : 1.0f;
+    }
+
+    void applyTrim (PresetBuilder& b, const String& name)
+    {
+        auto it = b.values.find ("master");
+        const float master = it != b.values.end() ? it->second : 0.7f;
+        b.set ("master", jlimit (0.05f, 2.5f, master * levelTrim (name)));
     }
 }
 
@@ -501,6 +1187,7 @@ const std::vector<FactoryPreset>& getFactoryPresets()
         {
             osc (b, 0, bBasic, posSaw, 1, 0.2f, 0.75f);
             b.set (O (1, "on"), 0);
+            applyTrim (b, "Init");
         } });
 
         for (auto& cat : categories())
@@ -513,6 +1200,7 @@ const std::vector<FactoryPreset>& getFactoryPresets()
                     FastRandom r (seedFor (e.name));
                     b.set (O (1, "on"), 0);   // osc B only when the recipe asks for it
                     recipe (b, e, r);
+                    applyTrim (b, e.name);
                 } });
             }
         return p;

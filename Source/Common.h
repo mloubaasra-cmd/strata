@@ -6,6 +6,7 @@
 #include <juce_dsp/juce_dsp.h>
 
 #include <array>
+#include <map>
 #include <atomic>
 #include <memory>
 #include <vector>

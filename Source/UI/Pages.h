@@ -170,7 +170,7 @@ public:
 
     FxOrderList orderList;
 
-private:
+
     struct FxPanel : public Panel
     {
         FxPanel (UIContext&, const juce::String& title, const juce::String& powerId, const juce::String& blurb);
